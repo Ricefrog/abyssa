@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -14,26 +16,33 @@ import (
 
 const IMAGE_CACHE_DIR = "/tmp/greenclip/"
 
-func getMostNewestImagePath() string {
-	return "42"
+func sendToClipboard(text string) error {
+	cmd := exec.Command("xclip")
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, text)
+	}()
+
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
+
+	//replacer := strings.NewReplacer("\"", "\"")
+
 	client := gosseract.NewClient()
 	defer client.Close()
-
-	/*
-		err := client.SetImage("./example/two_words.png")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		text, err := client.Text()
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("sanity check: %s\n", text)
-	*/
 
 	dirWatcher := watcher.New()
 	defer dirWatcher.Close()
@@ -43,7 +52,6 @@ func main() {
 		for {
 			select {
 			case event := <-dirWatcher.Event:
-				//fmt.Printf("%s was created.\n", event.Path)
 
 				client.SetImage(event.Path)
 
@@ -52,10 +60,22 @@ func main() {
 					log.Fatal(err)
 				}
 
+				//fmt.Printf("text before: %s\n", text)
 				text = strings.TrimSpace(text)
-				if len(text) > 0 {
-					fmt.Println(text)
+				//fmt.Printf("text after: %s\n", text)
+
+				if len(text) < 1 {
+					// no text detected
+					//fmt.Println("no text detected")
+					continue
 				}
+
+				err = sendToClipboard(text)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				fmt.Printf("copied '%s' to clipboard\n", text)
 
 			case err := <-dirWatcher.Error:
 				log.Fatal(err)
