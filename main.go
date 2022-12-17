@@ -70,6 +70,66 @@ func getDaemonPID() string {
 	return string(b)
 }
 
+func startDaemon() *watcher.Watcher {
+	dirWatcher := watcher.New()
+	go func() {
+		client := gosseract.NewClient()
+		defer client.Close()
+
+		//defer dirWatcher.Close()
+
+		dirWatcher.FilterOps(watcher.Create)
+		go func() {
+			for {
+				select {
+				case event := <-dirWatcher.Event:
+
+					client.SetImage(event.Path)
+
+					text, err := client.Text()
+					if err != nil {
+						handleErrorWithMsg(err, "while extracting text from image.")
+					}
+
+					text = strings.TrimSpace(text)
+
+					if len(text) < 1 {
+						// no text detected
+						continue
+					}
+
+					err = sendToClipboard(text)
+					if err != nil {
+						handleErrorWithMsg(err, "while sending text to clipboard.")
+					}
+
+					msg := fmt.Sprintf("Copied '%s' to clipboard.", text)
+					go notification(msg)
+
+				case err := <-dirWatcher.Error:
+					handleError(err)
+				case <-dirWatcher.Closed:
+					return
+				}
+			}
+		}()
+
+		err := dirWatcher.Add(IMAGE_CACHE_DIR)
+		if err != nil {
+			handleError(err)
+		}
+
+		if err := dirWatcher.Start(time.Millisecond * 500); err != nil {
+			handleError(err)
+		}
+	}()
+	return dirWatcher
+}
+
+func stopDaemon(dirWatcher *watcher.Watcher) {
+	dirWatcher.Close()
+}
+
 func main() {
 	flag := "none"
 	if len(os.Args) > 1 {
@@ -93,8 +153,16 @@ func main() {
 		signal.Notify(sig, syscall.SIGUSR1)
 		blocker := make(chan struct{}, 1)
 
+		var dirWatcher *watcher.Watcher
+
 		for {
-			fmt.Printf("toggle: %t\n", toggle)
+			if toggle {
+				go notification("abyssa: activated")
+				dirWatcher = startDaemon()
+			} else {
+				go notification("abyssa: deactivated")
+				go stopDaemon(dirWatcher)
+			}
 			go func() {
 				<-sig
 				blocker <- struct{}{}
@@ -122,58 +190,56 @@ func main() {
 
 	return
 
-	client := gosseract.NewClient()
-	defer client.Close()
+	/*
+		client := gosseract.NewClient()
+		defer client.Close()
 
-	dirWatcher := watcher.New()
-	defer dirWatcher.Close()
+		dirWatcher := watcher.New()
+		defer dirWatcher.Close()
 
-	dirWatcher.FilterOps(watcher.Create)
-	go func() {
-		for {
-			select {
-			case event := <-dirWatcher.Event:
+		dirWatcher.FilterOps(watcher.Create)
+		go func() {
+			for {
+				select {
+				case event := <-dirWatcher.Event:
 
-				client.SetImage(event.Path)
+					client.SetImage(event.Path)
 
-				text, err := client.Text()
-				if err != nil {
+					text, err := client.Text()
+					if err != nil {
+						handleError(err)
+					}
+
+					text = strings.TrimSpace(text)
+
+					if len(text) < 1 {
+						// no text detected
+						continue
+					}
+
+					err = sendToClipboard(text)
+					if err != nil {
+						handleError(err)
+					}
+
+					msg := fmt.Sprintf("Copied '%s' to clipboard.", text)
+					go notification(msg)
+
+				case err := <-dirWatcher.Error:
 					handleError(err)
+				case <-dirWatcher.Closed:
+					return
 				}
-
-				text = strings.TrimSpace(text)
-
-				if len(text) < 1 {
-					// no text detected
-					continue
-				}
-
-				err = sendToClipboard(text)
-				if err != nil {
-					notification("abyssa: " + err.Error())
-					log.Fatal(err)
-				}
-
-				msg := fmt.Sprintf("Copied '%s' to clipboard.", text)
-				go notification(msg)
-
-			case err := <-dirWatcher.Error:
-				notification("abyssa: " + err.Error())
-				log.Fatal(err)
-			case <-dirWatcher.Closed:
-				return
 			}
+		}()
+
+		err := dirWatcher.Add(IMAGE_CACHE_DIR)
+		if err != nil {
+			handleError(err)
 		}
-	}()
 
-	err := dirWatcher.Add(IMAGE_CACHE_DIR)
-	if err != nil {
-		notification("abyssa: " + err.Error())
-		log.Fatal(err)
-	}
-
-	if err := dirWatcher.Start(time.Millisecond * 500); err != nil {
-		notification("abyssa: " + err.Error())
-		log.Fatal(err)
-	}
+		if err := dirWatcher.Start(time.Millisecond * 500); err != nil {
+			handleError(err)
+		}
+	*/
 }
