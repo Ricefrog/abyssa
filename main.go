@@ -12,7 +12,7 @@ import (
 	"github.com/radovskyb/watcher"
 )
 
-// TODO: add dunst notification
+// TODO: figure out daemon functionality
 
 const IMAGE_CACHE_DIR = "/tmp/greenclip/"
 
@@ -37,10 +37,14 @@ func sendToClipboard(text string) error {
 	return nil
 }
 
+func notification(msg string) {
+	cmd := exec.Command("notify-send", "--icon=none", msg)
+	if err := cmd.Run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
-
-	//replacer := strings.NewReplacer("\"", "\"")
-
 	client := gosseract.NewClient()
 	defer client.Close()
 
@@ -57,27 +61,28 @@ func main() {
 
 				text, err := client.Text()
 				if err != nil {
+					notification("abyssa: " + err.Error())
 					log.Fatal(err)
 				}
 
-				//fmt.Printf("text before: %s\n", text)
 				text = strings.TrimSpace(text)
-				//fmt.Printf("text after: %s\n", text)
 
 				if len(text) < 1 {
 					// no text detected
-					//fmt.Println("no text detected")
 					continue
 				}
 
 				err = sendToClipboard(text)
 				if err != nil {
+					notification("abyssa: " + err.Error())
 					log.Fatal(err)
 				}
 
-				fmt.Printf("copied '%s' to clipboard\n", text)
+				msg := fmt.Sprintf("Copied '%s' to clipboard.", text)
+				go notification(msg)
 
 			case err := <-dirWatcher.Error:
+				notification("abyssa: " + err.Error())
 				log.Fatal(err)
 			case <-dirWatcher.Closed:
 				return
@@ -87,10 +92,12 @@ func main() {
 
 	err := dirWatcher.Add(IMAGE_CACHE_DIR)
 	if err != nil {
+		notification("abyssa: " + err.Error())
 		log.Fatal(err)
 	}
 
 	if err := dirWatcher.Start(time.Millisecond * 500); err != nil {
+		notification("abyssa: " + err.Error())
 		log.Fatal(err)
 	}
 
