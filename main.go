@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
+	"os/signal"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/otiai10/gosseract/v2"
@@ -15,6 +19,9 @@ import (
 // TODO: figure out daemon functionality
 
 const IMAGE_CACHE_DIR = "/tmp/greenclip/"
+const DPID_FILE = "/tmp/abyssa"
+
+var toggle = true
 
 func sendToClipboard(text string) error {
 	cmd := exec.Command("xclip")
@@ -44,7 +51,77 @@ func notification(msg string) {
 	}
 }
 
+func handleError(err error) {
+	notification("abyssa: " + err.Error())
+	log.Fatal(err)
+}
+
+func handleErrorWithMsg(err error, msg string) {
+	notification("abyssa: " + err.Error() + " " + msg)
+	log.Fatal(err)
+}
+
+func getDaemonPID() string {
+	cmd := exec.Command("cat", DPID_FILE)
+	b, err := cmd.Output()
+	if err != nil {
+		handleErrorWithMsg(err, "while trying to retrieve daemon PID.")
+	}
+	return string(b)
+}
+
 func main() {
+	flag := "none"
+	if len(os.Args) > 1 {
+		flag = os.Args[1]
+	}
+
+	if flag == "daemon" {
+		// write pid of daemon to /tmp/abyssa
+		file, err := os.Create(DPID_FILE)
+		if err != nil {
+			handleError(err)
+		}
+
+		_, err = file.Write([]byte(strconv.Itoa(os.Getpid())))
+		if err != nil {
+			handleError(err)
+		}
+		file.Close()
+
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGUSR1)
+		blocker := make(chan struct{}, 1)
+
+		for {
+			fmt.Printf("toggle: %t\n", toggle)
+			go func() {
+				<-sig
+				blocker <- struct{}{}
+			}()
+
+			fmt.Println("awaiting signal")
+			<-blocker
+			toggle = !toggle
+		}
+	} else if flag == "kill" {
+		// send killsignal to daemon
+		daemonPID := getDaemonPID()
+		cmd := exec.Command("kill", "-9", daemonPID)
+		if err := cmd.Run(); err != nil {
+			handleErrorWithMsg(err, "while trying to send kill signal to daemon.")
+		}
+	} else {
+		// send toggle signal to daemon
+		daemonPID := getDaemonPID()
+		cmd := exec.Command("kill", "-SIGUSR1", daemonPID)
+		if err := cmd.Run(); err != nil {
+			handleErrorWithMsg(err, "while trying to send toggle signal to daemon.")
+		}
+	}
+
+	return
+
 	client := gosseract.NewClient()
 	defer client.Close()
 
@@ -61,8 +138,7 @@ func main() {
 
 				text, err := client.Text()
 				if err != nil {
-					notification("abyssa: " + err.Error())
-					log.Fatal(err)
+					handleError(err)
 				}
 
 				text = strings.TrimSpace(text)
@@ -100,5 +176,4 @@ func main() {
 		notification("abyssa: " + err.Error())
 		log.Fatal(err)
 	}
-
 }
