@@ -76,8 +76,6 @@ func startDaemon() *watcher.Watcher {
 		client := gosseract.NewClient()
 		defer client.Close()
 
-		//defer dirWatcher.Close()
-
 		dirWatcher.FilterOps(watcher.Create)
 		go func() {
 			for {
@@ -189,57 +187,4 @@ func main() {
 	}
 
 	return
-
-	/*
-		client := gosseract.NewClient()
-		defer client.Close()
-
-		dirWatcher := watcher.New()
-		defer dirWatcher.Close()
-
-		dirWatcher.FilterOps(watcher.Create)
-		go func() {
-			for {
-				select {
-				case event := <-dirWatcher.Event:
-
-					client.SetImage(event.Path)
-
-					text, err := client.Text()
-					if err != nil {
-						handleError(err)
-					}
-
-					text = strings.TrimSpace(text)
-
-					if len(text) < 1 {
-						// no text detected
-						continue
-					}
-
-					err = sendToClipboard(text)
-					if err != nil {
-						handleError(err)
-					}
-
-					msg := fmt.Sprintf("Copied '%s' to clipboard.", text)
-					go notification(msg)
-
-				case err := <-dirWatcher.Error:
-					handleError(err)
-				case <-dirWatcher.Closed:
-					return
-				}
-			}
-		}()
-
-		err := dirWatcher.Add(IMAGE_CACHE_DIR)
-		if err != nil {
-			handleError(err)
-		}
-
-		if err := dirWatcher.Start(time.Millisecond * 500); err != nil {
-			handleError(err)
-		}
-	*/
 }
