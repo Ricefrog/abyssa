@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/png"
 	"io"
 	"log"
 	"os"
@@ -14,12 +17,12 @@ import (
 
 	"github.com/otiai10/gosseract/v2"
 	"github.com/radovskyb/watcher"
+	"golang.org/x/image/draw"
 )
-
-// TODO: figure out daemon functionality
 
 const IMAGE_CACHE_DIR = "/tmp/greenclip/"
 const DPID_FILE = "/tmp/abyssa"
+const AREA_LOWER_BOUND = 550 * 550
 
 var toggle = true
 
@@ -70,6 +73,50 @@ func getDaemonPID() string {
 	return string(b)
 }
 
+func resize(scale float32, src image.Image) image.Image {
+	dst := image.NewRGBA(image.Rect(0, 0, int(float32(src.Bounds().Max.X)*scale), int(float32(src.Bounds().Max.Y)*scale)))
+	draw.ApproxBiLinear.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
+	return dst
+}
+
+func getText(client *gosseract.Client, path string) (string, error) {
+	var img *image.Image
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	unaltered, err := png.Decode(f)
+	if err != nil {
+		return "", err
+	}
+
+	area := unaltered.Bounds().Max.X * unaltered.Bounds().Max.Y
+	if area < AREA_LOWER_BOUND {
+		scale := (float32(AREA_LOWER_BOUND) / float32(area)) / 2
+		temp := resize(scale, unaltered)
+		img = &temp
+	} else {
+		img = &unaltered
+	}
+
+	buf := bytes.NewBuffer([]byte{})
+
+	err = png.Encode(buf, *img)
+	if err != nil {
+		return "", err
+	}
+
+	err = client.SetImageFromBytes(buf.Bytes())
+	if err != nil {
+		return "", err
+	}
+
+	text, err := client.Text()
+	return text, err
+}
+
 func startDaemon() *watcher.Watcher {
 	dirWatcher := watcher.New()
 	go func() {
@@ -81,10 +128,7 @@ func startDaemon() *watcher.Watcher {
 			for {
 				select {
 				case event := <-dirWatcher.Event:
-
-					client.SetImage(event.Path)
-
-					text, err := client.Text()
+					text, err := getText(client, event.Path)
 					if err != nil {
 						handleErrorWithMsg(err, "while extracting text from image.")
 					}
@@ -103,7 +147,6 @@ func startDaemon() *watcher.Watcher {
 
 					msg := fmt.Sprintf("Copied '%s' to clipboard.", text)
 					go notification(msg)
-
 				case err := <-dirWatcher.Error:
 					handleError(err)
 				case <-dirWatcher.Closed:
