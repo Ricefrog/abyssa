@@ -19,7 +19,19 @@ A program for extracting text from screenshots.
     - Sends desktop notifications to the user via a notification daemon
     - Included in most Linux distros
 
+## Example usecases:
+
+### Copying code snippets from videos:
+
+https://user-images.githubusercontent.com/48808721/209611091-a08a510d-9c9f-4a53-8c8e-1934208a301d.mp4
+
+### Copying text from documents with buggy text selection:
+
+https://user-images.githubusercontent.com/48808721/209611262-8ded81c8-93be-4c5b-bfc9-12b7882150eb.mp4
+
+
 ## Usage:
+- Compile (`go build -o abyssa main.go`) and move `abyssa` binary to the desired `$PATH` directory.
 - Start the abyssa daemon: `abyssa daemon`
 - Toggle abyssa: `abyssa`
     - While abyssa is activated it will process *every* screenshot that is copied to the clipboard.
@@ -33,13 +45,3 @@ A program for extracting text from screenshots.
 
 ### Toggles abyssa:
 `bindsym $mod+a	exec --no-startup-id abyssa`
-
-## Example usecases:
-
-### Copying code snippets from videos:
-
-https://user-images.githubusercontent.com/48808721/209611091-a08a510d-9c9f-4a53-8c8e-1934208a301d.mp4
-
-### Copying text from documents with buggy text selection:
-
-https://user-images.githubusercontent.com/48808721/209611262-8ded81c8-93be-4c5b-bfc9-12b7882150eb.mp4
