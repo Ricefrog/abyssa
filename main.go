@@ -27,7 +27,7 @@ const AREA_LOWER_BOUND = 550 * 550
 var toggle = true
 
 func sendToClipboard(text string) error {
-	cmd := exec.Command("xclip")
+	cmd := exec.Command("xclip", "-sel", "clip")
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

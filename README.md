@@ -13,6 +13,8 @@ A program for extracting text from screenshots.
 - `flameshot`: https://github.com/flameshot-org/flameshot
     - Screenshot software
     - Any other Linux screenshot software should work as long as it is compatible with `greenclip`
+- `x-clip`
+    - Used to insert text into system clipboard.
 - `notify-send` 
     - Sends desktop notifications to the user via a notification daemon
     - Included in most Linux distros
