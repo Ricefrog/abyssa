@@ -35,7 +35,7 @@ https://user-images.githubusercontent.com/48808721/209611262-8ded81c8-93be-4c5b-
 - Start the abyssa daemon: `abyssa daemon`
 - Toggle abyssa: `abyssa`
     - While abyssa is activated it will process *every* screenshot that is copied to the clipboard.
-    - Binding a toggle key is reccomended.
+    - Binding a toggle key is recomended.
 - Kill the abyssa daemon: `abyssa kill`
 
 ## Example i3 bindings:
